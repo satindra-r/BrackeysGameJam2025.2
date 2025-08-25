@@ -2,113 +2,95 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace BrackeysGameJam
-{
-    [RequireComponent(typeof(Animator))]
-    [RequireComponent(typeof(Rigidbody2D))]
-    [RequireComponent(typeof(PlayerInput))]
-    public sealed class Movement : MonoBehaviour
-    {
-        [SerializeField] private Rigidbody2D rigidBody;
+namespace BrackeysGameJam {
+	[RequireComponent(typeof(Animator))]
+	[RequireComponent(typeof(Rigidbody2D))]
+	[RequireComponent(typeof(PlayerInput))]
+	public sealed class Movement : MonoBehaviour {
+		[SerializeField] private Rigidbody2D rigidBody;
 
-        [SerializeField] private float speed;
-        [SerializeField] private float crouchSpeed;
-        
-        [SerializeField] private float jumpForce;
-        
-        [SerializeField] private float hopAngle;
-        [SerializeField] private float hopForce;
-        [SerializeField] private float hopImpulseTime;
-        
-        [SerializeField] private Animator animator;
-        [SerializeField] private string hopTrigger;
-        
-        private Vector2 input;
+		[SerializeField] private float speed;
+		[SerializeField] private float airAcceleration;
+		[SerializeField] private float crouchSpeedModifier;
+		[SerializeField] private float airDeceleration;
 
-        private bool hop;
-        private bool jump;
-        private bool crouch;
+		[SerializeField] private float jumpVel;
 
-        private bool grounded;
-        private bool groundedFlag;
+		[SerializeField] private Animator animator;
+		[SerializeField] private string hopTrigger;
 
-        private int hopTriggerHash;
+		private Vector2 input;
 
-        void Start()
-        {
-            if (rigidBody == null)
-                rigidBody = GetComponent<Rigidbody2D>();
-            if (animator == null)
-                animator = GetComponent<Animator>();
+		private bool isJumping;
+		private bool isCrouching;
 
-            hopTriggerHash = Animator.StringToHash(hopTrigger);
-        }
+		private bool isGrounded;
+		private bool justLanded;
 
-        private void FixedUpdate()
-        {
-            if (groundedFlag)
-            {
-                rigidBody.AddForce(new Vector2(-rigidBody.linearVelocityX / hopImpulseTime, -rigidBody.linearVelocityY / hopImpulseTime));
-                groundedFlag = false;
-                return;
-            }
-            
-            if(!grounded)
-                return;
+		private int hopTriggerHash;
 
-            if (jump && grounded)
-            {
-                rigidBody.AddForce(Vector2.up * jumpForce);
-                jump = false;
-                return;
-            }
+		void Start() {
+			if (rigidBody == null)
+				rigidBody = GetComponent<Rigidbody2D>();
 
-            if (hop && !Mathf.Approximately(input.x, 0))
-            {
-                var direction = new Vector2(input.x, 0).Rotate(input.x > 0 ? hopAngle : -hopAngle);
-                rigidBody.AddForce(direction * hopForce);
-                
-                animator.SetTrigger(hopTriggerHash);
-            }
-            else if (crouch)
-                rigidBody.linearVelocityX = crouchSpeed * input.x;
-            else
-                rigidBody.linearVelocityX = speed * input.x;
-        }
+			if (animator == null)
+				animator = GetComponent<Animator>();
 
-        public void OnMove(InputAction.CallbackContext context)
-        {
-            input = context.ReadValue<Vector2>();
-        }
+			hopTriggerHash = Animator.StringToHash(hopTrigger);
+		}
 
-        public void OnJump(InputAction.CallbackContext context)
-        {
-            if (context.started)
-                jump = true;
-        }
+		private void FixedUpdate() {
+			if (isJumping && isGrounded) {
+				rigidBody.linearVelocityY = jumpVel;
+				animator.SetTrigger(hopTriggerHash);
+			}
+			else if (justLanded) {
+				rigidBody.linearVelocityY = 0;
+				justLanded = false;
+				return;
+			}
 
-        public void OnCrouch(InputAction.CallbackContext context)
-        {
-            if (context.started ^ context.canceled)
-                crouch = !crouch;
-        }
+			{
+				if (isGrounded) {
+					if (isCrouching) {
+						rigidBody.linearVelocityX = crouchSpeedModifier * speed * input.x;
+					}
+					else {
+						rigidBody.linearVelocityX = speed * input.x;
+					}
+				}
+				else if (!Mathf.Approximately(input.x, 0)) {
+					rigidBody.linearVelocityX =
+						Math.Clamp(rigidBody.linearVelocityX + airAcceleration * input.x, -speed, speed);
+				}
+				else {
+					rigidBody.linearVelocityX *= airDeceleration;
+				}
+			}
+		}
 
-        public void OnSprint(InputAction.CallbackContext context)
-        {
-            if (context.started ^ context.canceled)
-                hop = !hop;
-        }
+		public void OnMove(InputAction.CallbackContext context) {
+			input = context.ReadValue<Vector2>();
+		}
 
-        public void OnGroundEnter()
-        {
-            grounded = true;
-            groundedFlag = true;
-        }
+		public void OnJump(InputAction.CallbackContext context) {
+			if (context.started ^ context.canceled)
+				isJumping = !isJumping;
+		}
 
-        public void OnGroundExit()
-        {
-            grounded = false;
-            groundedFlag = false;
-        }
-    }
+		public void OnCrouch(InputAction.CallbackContext context) {
+			if (context.started ^ context.canceled)
+				isCrouching = !isCrouching;
+		}
+
+		public void OnGroundEnter() {
+			isGrounded = true;
+			justLanded = true;
+		}
+
+		public void OnGroundExit() {
+			isGrounded = false;
+			justLanded = false;
+		}
+	}
 }
