@@ -2,15 +2,15 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-
 namespace BrackeysGameJam
 {
+    [RequireComponent(typeof(Animator))]
     [RequireComponent(typeof(Rigidbody2D))]
     [RequireComponent(typeof(PlayerInput))]
     public sealed class Movement : MonoBehaviour
     {
         [SerializeField] private Rigidbody2D rigidBody;
-        
+
         [SerializeField] private float speed;
         [SerializeField] private float crouchSpeed;
         
@@ -20,19 +20,28 @@ namespace BrackeysGameJam
         [SerializeField] private float hopForce;
         [SerializeField] private float hopImpulseTime;
         
+        [SerializeField] private Animator animator;
+        [SerializeField] private string hopTrigger;
+        
         private Vector2 input;
 
+        private bool hop;
         private bool jump;
         private bool crouch;
-        private bool hop;
 
         private bool grounded;
         private bool groundedFlag;
+
+        private int hopTriggerHash;
 
         void Start()
         {
             if (rigidBody == null)
                 rigidBody = GetComponent<Rigidbody2D>();
+            if (animator == null)
+                animator = GetComponent<Animator>();
+
+            hopTriggerHash = Animator.StringToHash(hopTrigger);
         }
 
         private void FixedUpdate()
@@ -50,13 +59,16 @@ namespace BrackeysGameJam
             if (jump && grounded)
             {
                 rigidBody.AddForce(Vector2.up * jumpForce);
+                jump = false;
                 return;
             }
 
-            if (hop)
+            if (hop && !Mathf.Approximately(input.x, 0))
             {
-                var direction = new Vector2(input.x, 0).Rotate(hopAngle);
+                var direction = new Vector2(input.x, 0).Rotate(input.x > 0 ? hopAngle : -hopAngle);
                 rigidBody.AddForce(direction * hopForce);
+                
+                animator.SetTrigger(hopTriggerHash);
             }
             else if (crouch)
                 rigidBody.linearVelocityX = crouchSpeed * input.x;
@@ -71,7 +83,8 @@ namespace BrackeysGameJam
 
         public void OnJump(InputAction.CallbackContext context)
         {
-            jump = context.started && !context.canceled;
+            if (context.started)
+                jump = true;
         }
 
         public void OnCrouch(InputAction.CallbackContext context)
@@ -89,13 +102,13 @@ namespace BrackeysGameJam
         public void OnGroundEnter()
         {
             grounded = true;
-            groundedFlag = false;
+            groundedFlag = true;
         }
 
-        public void OnGroundLeave()
+        public void OnGroundExit()
         {
             grounded = false;
-            groundedFlag = true;
+            groundedFlag = false;
         }
     }
 }
